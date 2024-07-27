@@ -44,7 +44,7 @@ func main() {
 			// ... and a responder to handle the `user` or any errors that occur.
 			stahp.NewResponder(
 				// A responder needs to handle the value returned from the target function,...
-				func(w http.ResponseWriter, resp user) {
+				func(resp user, w http.ResponseWriter, _ *http.Request) {
 					w.WriteHeader(http.StatusCreated)
 					enc := json.NewEncoder(w)
 					if err := enc.Encode(resp); err != nil {
@@ -52,11 +52,11 @@ func main() {
 					}
 				},
 				// ... any error returned from the parser,...
-				func(w http.ResponseWriter, parseErr error) {
+				func(parseErr error, w http.ResponseWriter, _ *http.Request) {
 					http.Error(w, parseErr.Error(), http.StatusBadRequest)
 				},
 				// ... and any error returned from the target function.
-				func(w http.ResponseWriter, err error) {
+				func(err error, w http.ResponseWriter, _ *http.Request) {
 					if errors.Is(err, errUserAlreadyExists) {
 						http.Error(w, err.Error(), http.StatusConflict)
 						return
@@ -75,18 +75,18 @@ func main() {
 			a.getUsers,
 			stahp.NoReqParser,
 			stahp.NewResponder(
-				func(w http.ResponseWriter, resp []userSummary) {
+				func(resp []userSummary, w http.ResponseWriter, _ *http.Request) {
 					w.WriteHeader(http.StatusOK)
 					enc := json.NewEncoder(w)
 					if err := enc.Encode(resp); err != nil {
 						log.Printf("[ERROR] %s\n", err)
 					}
 				},
-				func(w http.ResponseWriter, parseErr error) {
+				func(parseErr error, w http.ResponseWriter, _ *http.Request) {
 					log.Printf("[CRITICAL] unexpected parse error from NoReqTarget GET /users: %s", parseErr)
 					http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 				},
-				func(w http.ResponseWriter, err error) {
+				func(err error, w http.ResponseWriter, _ *http.Request) {
 					http.Error(w, err.Error(), http.StatusInternalServerError)
 				},
 			),
@@ -105,21 +105,21 @@ func main() {
 				return id, nil
 			},
 			stahp.NewResponder(
-				func(w http.ResponseWriter, resp user) {
+				func(resp user, w http.ResponseWriter, _ *http.Request) {
 					w.WriteHeader(http.StatusOK)
 					enc := json.NewEncoder(w)
 					if err := enc.Encode(resp); err != nil {
 						log.Printf("[ERROR] %s\n", err)
 					}
 				},
-				func(w http.ResponseWriter, parseErr error) {
+				func(parseErr error, w http.ResponseWriter, _ *http.Request) {
 					if errors.Is(parseErr, errUserNotFound) {
 						http.Error(w, parseErr.Error(), http.StatusNotFound)
 						return
 					}
 					http.Error(w, parseErr.Error(), http.StatusInternalServerError)
 				},
-				func(w http.ResponseWriter, err error) {
+				func(err error, w http.ResponseWriter, _ *http.Request) {
 					if errors.Is(err, errUserNotFound) {
 						http.Error(w, err.Error(), http.StatusNotFound)
 						return
@@ -149,21 +149,21 @@ func main() {
 				return req, nil
 			},
 			stahp.NewResponder(
-				func(w http.ResponseWriter, resp post) {
+				func(resp post, w http.ResponseWriter, _ *http.Request) {
 					w.WriteHeader(http.StatusOK)
 					enc := json.NewEncoder(w)
 					if err := enc.Encode(resp); err != nil {
 						log.Printf("[ERROR] %s\n", err)
 					}
 				},
-				func(w http.ResponseWriter, parseErr error) {
+				func(parseErr error, w http.ResponseWriter, _ *http.Request) {
 					if errors.Is(parseErr, errUserNotFound) {
 						http.Error(w, parseErr.Error(), http.StatusNotFound)
 						return
 					}
 					http.Error(w, parseErr.Error(), http.StatusInternalServerError)
 				},
-				func(w http.ResponseWriter, err error) {
+				func(err error, w http.ResponseWriter, _ *http.Request) {
 					if errors.Is(err, errUserNotFound) {
 						http.Error(w, err.Error(), http.StatusNotFound)
 						return

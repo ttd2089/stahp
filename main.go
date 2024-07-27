@@ -33,19 +33,19 @@ func NoReqParser(*http.Request) (struct{}, error) {
 }
 
 // A ResponseWriter marshals a value to an HTTP response.
-type ResponseWriter[T any] func(http.ResponseWriter, T)
+type ResponseWriter[T any] func(T, http.ResponseWriter, *http.Request)
 
 // A Responder marshals responses and errors to an HTTP response.
 type Responder[Resp any] interface {
 
 	// Write marshals responses from a [Target] to an HTTP response.
-	Write(http.ResponseWriter, Resp)
+	Write(Resp, http.ResponseWriter, *http.Request)
 
 	// WriteParseErr marshals errors that occur parsing an HTTP request.
-	WriteParseErr(http.ResponseWriter, error)
+	WriteParseErr(error, http.ResponseWriter, *http.Request)
 
 	// WriteErr marshals errors from [Target] to an HTTP response.
-	WriteErr(http.ResponseWriter, error)
+	WriteErr(error, http.ResponseWriter, *http.Request)
 }
 
 // NewResponder builds a [Responder] from a [ResponseWriter] for each
@@ -67,16 +67,16 @@ type responder[Resp any] struct {
 	writeErr      ResponseWriter[error]
 }
 
-func (r responder[Resp]) Write(w http.ResponseWriter, resp Resp) {
-	r.write(w, resp)
+func (r responder[Resp]) Write(resp Resp, w http.ResponseWriter, rr *http.Request) {
+	r.write(resp, w, rr)
 }
 
-func (r responder[Resp]) WriteParseErr(w http.ResponseWriter, err error) {
-	r.writeParseErr(w, err)
+func (r responder[Resp]) WriteParseErr(err error, w http.ResponseWriter, rr *http.Request) {
+	r.writeParseErr(err, w, rr)
 }
 
-func (r responder[Resp]) WriteErr(w http.ResponseWriter, err error) {
-	r.writeErr(w, err)
+func (r responder[Resp]) WriteErr(err error, w http.ResponseWriter, rr *http.Request) {
+	r.writeErr(err, w, rr)
 }
 
 // Route generates an [http.HandlerFunc] from a [RequestParser], a [Target], and a [Responder].
@@ -101,13 +101,13 @@ type route[Req any, Resp any] struct {
 func (r route[Req, Resp]) ServeHTTP(w http.ResponseWriter, rr *http.Request) {
 	req, err := r.parse(rr)
 	if err != nil {
-		r.responder.WriteParseErr(w, err)
+		r.responder.WriteParseErr(err, w, rr)
 		return
 	}
 	resp, err := r.target(rr.Context(), req)
 	if err != nil {
-		r.responder.WriteErr(w, err)
+		r.responder.WriteErr(err, w, rr)
 		return
 	}
-	r.responder.Write(w, resp)
+	r.responder.Write(resp, w, rr)
 }
