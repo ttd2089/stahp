@@ -27,7 +27,7 @@ func main() {
 
 	a := app{}
 
-	http.Handle(
+	http.HandleFunc(
 		"POST /users/{$}",
 		stahp.Route(
 			// Our target function `addUser` takes a `createUserReq` and returns a `user`...
@@ -67,6 +67,8 @@ func main() {
 		),
 	)
 
+	// Route returns an http.HandleFunc but that type implements http.Handler so we can use it in
+	// either context.
 	http.Handle(
 		"GET /users/{$}",
 		stahp.Route(
@@ -91,7 +93,7 @@ func main() {
 		),
 	)
 
-	http.Handle(
+	http.HandleFunc(
 		"GET /users/{id}",
 		stahp.Route(
 			a.getUser,
@@ -128,7 +130,7 @@ func main() {
 		),
 	)
 
-	http.Handle(
+	http.HandleFunc(
 		"POST /users/{user_id}/posts/{$}",
 		stahp.Route(
 			a.addPost,

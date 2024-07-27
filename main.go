@@ -84,12 +84,12 @@ func Route[Req any, Resp any](
 	target Target[Req, Resp],
 	parser RequestParser[Req],
 	responder Responder[Resp],
-) http.Handler {
+) http.HandlerFunc {
 	return route[Req, Resp]{
 		target,
 		parser,
 		responder,
-	}
+	}.ServeHTTP
 }
 
 type route[Req any, Resp any] struct {
