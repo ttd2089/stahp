@@ -1,6 +1,7 @@
 package inject
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 )
@@ -17,17 +18,18 @@ type ServiceResolver interface {
 // when the [ServiceResolver] returns an error and when the value returned by the [ServiceResolver]
 // is not assignable to T.
 func Resolve[T any](resolver ServiceResolver) (T, error) {
-	var defaultT T
-	// If we just take the TypeOf defaultT directly we'll get nil for interface types but if we
-	// get the element (pointed to) type of a pointer to T we'll get T the actual T.
-	type_ := reflect.TypeOf(&defaultT).Elem()
+	var zero T
+	if resolver == nil {
+		return zero, errors.New("cannot resolve instances from nil ServiceResolver")
+	}
+	type_ := reflect.TypeFor[T]()
 	resolved, err := resolver.Resolve(type_)
 	if err != nil {
-		return defaultT, err
+		return zero, err
 	}
 	typed, ok := resolved.(T)
 	if !ok {
-		return typed, fmt.Errorf("ServiceResolver returned %T when %T was requested", resolved, defaultT)
+		return typed, fmt.Errorf("ServiceResolver returned %T when %T was requested", resolved, zero)
 	}
 	return typed, nil
 }

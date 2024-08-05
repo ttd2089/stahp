@@ -6,7 +6,7 @@ type ServiceLifetime int
 
 const (
 	// A Transient service has a new instance created every time the service is resolved.
-	Transient ServiceLifetime = iota
+	Transient ServiceLifetime = iota + 1
 
 	// A Scoped service has a single instance created per [ServiceProvider]. If the same service is
 	// resolved multiple times from the same [ServiceProvider] then the same instance will be
@@ -25,3 +25,15 @@ const (
 	// services can only be registered for interfaces and pointer types.
 	Singleton
 )
+
+func (lifetime ServiceLifetime) String() string {
+	switch lifetime {
+	case Transient:
+		return "Transient"
+	case Scoped:
+		return "Scoped"
+	case Singleton:
+		return "Singleton"
+	}
+	return "<unknown ServiceLifetime>"
+}
