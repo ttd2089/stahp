@@ -13,36 +13,36 @@ func TestResolve(t *testing.T) {
 		// If we just take the TypeOf defaultT directly we'll get nil for interface types but if we
 		// get the element (pointed to) type of a pointer to T we'll get T the actual T.
 		expected := reflect.TypeOf(&asFooer).Elem()
-		sp := mockResolver{}
-		sp.returns(&assignableToFooer{}, nil)
-		_, _ = Resolve[fooer](&sp)
-		if sp.requestedTypes[0] != expected {
-			t.Fatalf("expected %v; got %v", expected, sp.requestedTypes[0])
+		resolver := mockResolver{}
+		resolver.returns(&assignableToFooer{}, nil)
+		_, _ = Resolve[fooer](&resolver)
+		if resolver.requestedTypes[0] != expected {
+			t.Fatalf("expected %v; got %v", expected, resolver.requestedTypes[0])
 		}
 	})
 
 	t.Run("returns errors from the ServiceResolver", func(t *testing.T) {
 		expectedErr := errors.New("expected error")
-		sp := mockResolver{}
-		sp.returns(0, expectedErr)
-		if _, actualErr := Resolve[int](&sp); !errors.Is(actualErr, expectedErr) {
+		resolver := mockResolver{}
+		resolver.returns(0, expectedErr)
+		if _, actualErr := Resolve[int](&resolver); !errors.Is(actualErr, expectedErr) {
 			t.Fatalf("expected %v; got %v", expectedErr, actualErr)
 		}
 	})
 
 	t.Run("returns error when the returned value is not assignable to requested to type", func(t *testing.T) {
-		sp := mockResolver{}
-		sp.returns(0, nil)
-		if _, err := Resolve[string](&sp); err == nil {
+		resolver := mockResolver{}
+		resolver.returns(0, nil)
+		if _, err := Resolve[string](&resolver); err == nil {
 			t.Fatal("expected error; got <nil>")
 		}
 	})
 
 	t.Run("returns resolved value when assignable to requested type", func(t *testing.T) {
 		expected := &assignableToFooer{}
-		sp := mockResolver{}
-		sp.returns(expected, nil)
-		actual, err := Resolve[fooer](&sp)
+		resolver := mockResolver{}
+		resolver.returns(expected, nil)
+		actual, err := Resolve[fooer](&resolver)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -52,14 +52,6 @@ func TestResolve(t *testing.T) {
 	})
 }
 
-type fooer interface {
-	Foo()
-}
-
-type assignableToFooer struct{}
-
-func (assignableToFooer) Foo() {}
-
 type mockResolver struct {
 	returnValues []struct {
 		v   any
@@ -68,8 +60,8 @@ type mockResolver struct {
 	requestedTypes []reflect.Type
 }
 
-func (m *mockResolver) returns(v any, err error) {
-	m.returnValues = append(m.returnValues, struct {
+func (mock *mockResolver) returns(v any, err error) {
+	mock.returnValues = append(mock.returnValues, struct {
 		v   any
 		err error
 	}{
@@ -78,12 +70,12 @@ func (m *mockResolver) returns(v any, err error) {
 	})
 }
 
-func (m *mockResolver) Resolve(type_ reflect.Type) (any, error) {
-	m.requestedTypes = append(m.requestedTypes, type_)
-	if len(m.returnValues) == 0 {
+func (mock *mockResolver) Resolve(type_ reflect.Type) (any, error) {
+	mock.requestedTypes = append(mock.requestedTypes, type_)
+	if len(mock.returnValues) == 0 {
 		panic("no return values configured")
 	}
-	r := m.returnValues[0]
-	m.returnValues = m.returnValues[1:]
+	r := mock.returnValues[0]
+	mock.returnValues = mock.returnValues[1:]
 	return r.v, r.err
 }
