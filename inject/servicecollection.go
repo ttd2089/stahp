@@ -50,9 +50,11 @@ func (services *ServiceCollection) addRegistration(serviceType reflect.Type, reg
 
 // A ServiceProvider is a factory from which services can be resolved by type.
 type ServiceProvider struct {
-	registrations   map[reflect.Type]serviceRegistration
-	mu              sync.Mutex
-	scopedInstances map[reflect.Type]any
+	registrations      map[reflect.Type]serviceRegistration
+	scopedMu           sync.Mutex
+	scopedInstances    map[reflect.Type]any
+	singletonMu        sync.Mutex
+	singletonInstances map[reflect.Type]any
 }
 
 // NewScope creates a new ServiceProvider which will create distinct instances when resolving any
@@ -76,7 +78,7 @@ func (provider *ServiceProvider) Resolve(type_ reflect.Type) (any, error) {
 	case Scoped:
 		return provider.resolveScoped(type_, registration.factory)
 	case Singleton:
-		return registration.factory(provider)
+		return provider.resolveSingleton(type_, registration.factory)
 	default:
 		panic("this code should be unreachable: please open a an issue at https://github.com/ttd2089/stahp/issues/new")
 	}
@@ -87,9 +89,9 @@ func (provider *ServiceProvider) resolveScoped(type_ reflect.Type, factory facto
 	if service, ok := provider.scopedInstances[type_]; ok {
 		return service, nil
 	}
-	provider.mu.Lock()
-	defer provider.mu.Unlock()
-	// Someone may have saved a scoped instance while we were waiting for a lock so check again.
+	provider.scopedMu.Lock()
+	defer provider.scopedMu.Unlock()
+	// We may have resolved and saved a scoped instance while we were waiting for a lock so check again.
 	if service, ok := provider.scopedInstances[type_]; ok {
 		return service, nil
 	}
@@ -104,6 +106,31 @@ func (provider *ServiceProvider) resolveScoped(type_ reflect.Type, factory facto
 		provider.scopedInstances = make(map[reflect.Type]any, len(provider.registrations))
 	}
 	provider.scopedInstances[type_] = service
+	return service, nil
+}
+
+func (provider *ServiceProvider) resolveSingleton(type_ reflect.Type, factory factoryFunc) (any, error) {
+	// No need to lock if we've already saved the scoped instance.
+	if service, ok := provider.singletonInstances[type_]; ok {
+		return service, nil
+	}
+	provider.singletonMu.Lock()
+	defer provider.singletonMu.Unlock()
+	// We may have resolved and saved a singleton instance while we were waiting for a lock so check again.
+	if service, ok := provider.singletonInstances[type_]; ok {
+		return service, nil
+	}
+	// Build, save, and return the scoped instance.
+	service, err := factory(provider)
+	if err != nil {
+		return nil, err
+	}
+	// We would have initialized this but since we can't stop someone from creating a default
+	// instance we need to avoid writes to nil maps.
+	if provider.singletonInstances == nil {
+		provider.singletonInstances = make(map[reflect.Type]any, len(provider.registrations))
+	}
+	provider.singletonInstances[type_] = service
 	return service, nil
 }
 
