@@ -35,7 +35,8 @@ func (services *ServiceCollection) Build() (ServiceProvider, error) {
 	registrations := make(map[reflect.Type]serviceRegistration, len(services.registrations))
 	maps.Copy(registrations, services.registrations)
 	return ServiceProvider{
-		registrations: registrations,
+		registrations:      registrations,
+		singletonInstances: &instanceMap{},
 	}, nil
 }
 
@@ -50,13 +51,17 @@ func (services *ServiceCollection) addRegistration(serviceType reflect.Type, reg
 type ServiceProvider struct {
 	registrations      map[reflect.Type]serviceRegistration
 	scopedInstances    instanceMap
-	singletonInstances instanceMap
+	singletonInstances *instanceMap
 }
 
 // NewScope creates a new ServiceProvider which will create distinct instances when resolving any
 // [Scoped] services.
 func (provider *ServiceProvider) NewScope() ServiceProvider {
-	panic("unimplemented")
+	return ServiceProvider{
+		registrations: provider.registrations,
+		// Share the singleton instances of the parent.
+		singletonInstances: provider.singletonInstances,
+	}
 }
 
 // Resolve provides an instance of the requested type if one is registered.
@@ -103,6 +108,10 @@ type serviceRegistration struct {
 func RegisterType[T any](services *ServiceCollection, lifetime ServiceLifetime, type_ T) error {
 	if services == nil {
 		return errors.New("cannot register types to a nil ServiceProvider")
+	}
+
+	if lifetime != Transient && lifetime != Scoped && lifetime != Singleton {
+		return fmt.Errorf("unknown ServiceLifetime %d", lifetime)
 	}
 
 	implType := reflect.TypeOf(type_)

@@ -267,7 +267,7 @@ func TestServiceCollection(t *testing.T) {
 					a := resolve()
 					b := resolve()
 					if a != b {
-						t.Fatalf("instances are the distinct: %p %p", a, b)
+						t.Fatalf("instances are distinct: %p %p", a, b)
 					}
 				})
 			}
@@ -309,7 +309,137 @@ func TestServiceCollection(t *testing.T) {
 					a := resolve()
 					b := resolve()
 					if a != b {
-						t.Fatalf("instances are the distinct: %p %p", a, b)
+						t.Fatalf("instances are distinct: %p %p", a, b)
+					}
+				})
+			}
+		})
+
+		t.Run("scoped instances from child scope provider are distinct", func(t *testing.T) {
+
+			testCases := []struct {
+				name     string
+				services ServiceCollection
+			}{
+				{
+					name: "from type",
+					services: func() ServiceCollection {
+						services := ServiceCollection{}
+						RegisterType(&services, Scoped, &structWithUnexportedFields{})
+						return services
+					}(),
+				},
+				{
+					name: "from func",
+					services: func() ServiceCollection {
+						services := ServiceCollection{}
+						RegisterFunc[*structWithUnexportedFields](&services, Scoped, func(ServiceResolver) (*structWithUnexportedFields, error) {
+							return &structWithUnexportedFields{}, nil
+						})
+						return services
+					}(),
+				},
+			}
+
+			for _, tt := range testCases {
+				t.Run(tt.name, func(t *testing.T) {
+					provider, _ := tt.services.Build()
+					resolve := func(provider *ServiceProvider) *structWithUnexportedFields {
+						resolved, _ := provider.Resolve(reflect.TypeFor[*structWithUnexportedFields]())
+						return resolved.(*structWithUnexportedFields)
+					}
+					a := resolve(&provider)
+					childScope := provider.NewScope()
+					b := resolve(&childScope)
+					if a == b {
+						t.Fatalf("instances are the same: %p %p", a, b)
+					}
+				})
+			}
+		})
+
+		t.Run("singleton instances from child scope provider are the same", func(t *testing.T) {
+
+			testCases := []struct {
+				name     string
+				services ServiceCollection
+			}{
+				{
+					name: "from type",
+					services: func() ServiceCollection {
+						services := ServiceCollection{}
+						RegisterType(&services, Singleton, &structWithUnexportedFields{})
+						return services
+					}(),
+				},
+				{
+					name: "from func",
+					services: func() ServiceCollection {
+						services := ServiceCollection{}
+						RegisterFunc[*structWithUnexportedFields](&services, Singleton, func(ServiceResolver) (*structWithUnexportedFields, error) {
+							return &structWithUnexportedFields{}, nil
+						})
+						return services
+					}(),
+				},
+			}
+
+			for _, tt := range testCases {
+				t.Run(tt.name, func(t *testing.T) {
+					provider, _ := tt.services.Build()
+					resolve := func(provider *ServiceProvider) *structWithUnexportedFields {
+						resolved, _ := provider.Resolve(reflect.TypeFor[*structWithUnexportedFields]())
+						return resolved.(*structWithUnexportedFields)
+					}
+					a := resolve(&provider)
+					childScope := provider.NewScope()
+					b := resolve(&childScope)
+					if a != b {
+						t.Fatalf("instances are distinct: %p %p", a, b)
+					}
+				})
+			}
+		})
+
+		t.Run("singleton instances from grandchild scope provider are the same", func(t *testing.T) {
+
+			testCases := []struct {
+				name     string
+				services ServiceCollection
+			}{
+				{
+					name: "from type",
+					services: func() ServiceCollection {
+						services := ServiceCollection{}
+						RegisterType(&services, Singleton, &structWithUnexportedFields{})
+						return services
+					}(),
+				},
+				{
+					name: "from func",
+					services: func() ServiceCollection {
+						services := ServiceCollection{}
+						RegisterFunc[*structWithUnexportedFields](&services, Singleton, func(ServiceResolver) (*structWithUnexportedFields, error) {
+							return &structWithUnexportedFields{}, nil
+						})
+						return services
+					}(),
+				},
+			}
+
+			for _, tt := range testCases {
+				t.Run(tt.name, func(t *testing.T) {
+					provider, _ := tt.services.Build()
+					resolve := func(provider *ServiceProvider) *structWithUnexportedFields {
+						resolved, _ := provider.Resolve(reflect.TypeFor[*structWithUnexportedFields]())
+						return resolved.(*structWithUnexportedFields)
+					}
+					a := resolve(&provider)
+					childScope := provider.NewScope()
+					grandchildScope := childScope.NewScope()
+					b := resolve(&grandchildScope)
+					if a != b {
+						t.Fatalf("instances are distinct: %p %p", a, b)
 					}
 				})
 			}
