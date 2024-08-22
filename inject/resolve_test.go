@@ -8,14 +8,14 @@ import (
 
 func TestResolve(t *testing.T) {
 
-	t.Run("requests the type of T from the ServiceResolver", func(t *testing.T) {
-		var asFooer fooer
+	t.Run("requests an instance of the type T from the ServiceResolver", func(t *testing.T) {
+		var defaultT interface{}
 		// If we just take the TypeOf defaultT directly we'll get nil for interface types but if we
-		// get the element (pointed to) type of a pointer to T we'll get T the actual T.
-		expected := reflect.TypeOf(&asFooer).Elem()
+		// get the element (pointed to) type of a pointer to T we'll get the actual type T.
+		expected := reflect.TypeOf(&defaultT).Elem()
 		resolver := mockResolver{}
-		resolver.returns(&assignableToFooer{}, nil)
-		_, _ = Resolve[fooer](&resolver)
+		resolver.returns(&struct{}{}, nil)
+		_, _ = Resolve[interface{}](&resolver)
 		if resolver.requestedTypes[0] != expected {
 			t.Fatalf("expected %v; got %v", expected, resolver.requestedTypes[0])
 		}
@@ -24,25 +24,25 @@ func TestResolve(t *testing.T) {
 	t.Run("returns errors from the ServiceResolver", func(t *testing.T) {
 		expectedErr := errors.New("expected error")
 		resolver := mockResolver{}
-		resolver.returns(0, expectedErr)
-		if _, actualErr := Resolve[int](&resolver); !errors.Is(actualErr, expectedErr) {
+		resolver.returns(struct{}{}, expectedErr)
+		if _, actualErr := Resolve[struct{}](&resolver); !errors.Is(actualErr, expectedErr) {
 			t.Fatalf("expected %v; got %v", expectedErr, actualErr)
 		}
 	})
 
 	t.Run("returns error when the returned value is not assignable to requested to type", func(t *testing.T) {
 		resolver := mockResolver{}
-		resolver.returns(0, nil)
+		resolver.returns(struct{}{}, nil)
 		if _, err := Resolve[string](&resolver); err == nil {
 			t.Fatal("expected error; got <nil>")
 		}
 	})
 
 	t.Run("returns resolved value when assignable to requested type", func(t *testing.T) {
-		expected := &assignableToFooer{}
+		expected := &struct{}{}
 		resolver := mockResolver{}
 		resolver.returns(expected, nil)
-		actual, err := Resolve[fooer](&resolver)
+		actual, err := Resolve[interface{}](&resolver)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
