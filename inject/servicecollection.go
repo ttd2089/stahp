@@ -36,8 +36,7 @@ func (services *ServiceCollection) Build() (ServiceProvider, error) {
 	registrations := make(map[reflect.Type]serviceRegistration, len(services.registrations))
 	maps.Copy(registrations, services.registrations)
 	return ServiceProvider{
-		registrations:   registrations,
-		scopedInstances: make(map[reflect.Type]any, len(services.registrations)),
+		registrations: registrations,
 	}, nil
 }
 
@@ -51,10 +50,8 @@ func (services *ServiceCollection) addRegistration(serviceType reflect.Type, reg
 // A ServiceProvider is a factory from which services can be resolved by type.
 type ServiceProvider struct {
 	registrations      map[reflect.Type]serviceRegistration
-	scopedMu           sync.Mutex
-	scopedInstances    map[reflect.Type]any
-	singletonMu        sync.Mutex
-	singletonInstances map[reflect.Type]any
+	scopedInstances    instanceMap
+	singletonInstances instanceMap
 }
 
 // NewScope creates a new ServiceProvider which will create distinct instances when resolving any
@@ -85,53 +82,11 @@ func (provider *ServiceProvider) Resolve(type_ reflect.Type) (any, error) {
 }
 
 func (provider *ServiceProvider) resolveScoped(type_ reflect.Type, factory factoryFunc) (any, error) {
-	// No need to lock if we've already saved the scoped instance.
-	if service, ok := provider.scopedInstances[type_]; ok {
-		return service, nil
-	}
-	provider.scopedMu.Lock()
-	defer provider.scopedMu.Unlock()
-	// We may have resolved and saved a scoped instance while we were waiting for a lock so check again.
-	if service, ok := provider.scopedInstances[type_]; ok {
-		return service, nil
-	}
-	// Build, save, and return the scoped instance.
-	service, err := factory(provider)
-	if err != nil {
-		return nil, err
-	}
-	// We would have initialized this but since we can't stop someone from creating a default
-	// instance we need to avoid writes to nil maps.
-	if provider.scopedInstances == nil {
-		provider.scopedInstances = make(map[reflect.Type]any, len(provider.registrations))
-	}
-	provider.scopedInstances[type_] = service
-	return service, nil
+	return provider.scopedInstances.resolve(type_, factory, provider)
 }
 
 func (provider *ServiceProvider) resolveSingleton(type_ reflect.Type, factory factoryFunc) (any, error) {
-	// No need to lock if we've already saved the scoped instance.
-	if service, ok := provider.singletonInstances[type_]; ok {
-		return service, nil
-	}
-	provider.singletonMu.Lock()
-	defer provider.singletonMu.Unlock()
-	// We may have resolved and saved a singleton instance while we were waiting for a lock so check again.
-	if service, ok := provider.singletonInstances[type_]; ok {
-		return service, nil
-	}
-	// Build, save, and return the scoped instance.
-	service, err := factory(provider)
-	if err != nil {
-		return nil, err
-	}
-	// We would have initialized this but since we can't stop someone from creating a default
-	// instance we need to avoid writes to nil maps.
-	if provider.singletonInstances == nil {
-		provider.singletonInstances = make(map[reflect.Type]any, len(provider.registrations))
-	}
-	provider.singletonInstances[type_] = service
-	return service, nil
+	return provider.singletonInstances.resolve(type_, factory, provider)
 }
 
 type factoryFunc func(ServiceResolver) (any, error)
@@ -214,4 +169,36 @@ func RegisterFunc[Service any, Impl any](
 	})
 
 	return nil
+}
+
+type instanceMap struct {
+	mu        sync.Mutex
+	instances map[reflect.Type]any
+}
+
+func (m *instanceMap) resolve(
+	type_ reflect.Type,
+	factory factoryFunc,
+	provider *ServiceProvider,
+) (any, error) {
+	// No need to lock if we've already saved the scoped instance.
+	if service, ok := m.instances[type_]; ok {
+		return service, nil
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	// We may have resolved and saved a singleton instance while we were waiting for a lock so check again.
+	if service, ok := m.instances[type_]; ok {
+		return service, nil
+	}
+	// Build, save, and return the scoped instance.
+	service, err := factory(provider)
+	if err != nil {
+		return nil, err
+	}
+	if m.instances == nil {
+		m.instances = make(map[reflect.Type]any, len(provider.registrations))
+	}
+	m.instances[type_] = service
+	return service, nil
 }
