@@ -32,7 +32,6 @@ func (services *ServiceCollection) Build() (ServiceProvider, error) {
 	if services == nil {
 		return ServiceProvider{}, errors.New("cannot build ServiceProvider from nil ServiceCollection")
 	}
-	// TODO: analyze graph for validity
 	registrations := make(map[reflect.Type]serviceRegistration, len(services.registrations))
 	maps.Copy(registrations, services.registrations)
 	return ServiceProvider{
